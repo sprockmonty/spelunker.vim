@@ -109,6 +109,54 @@ function! s:filter_spell_bad_list(word_list)
 			continue
 		endif
 
+		if l:spell_bad_word != '' 
+            let l:i = 0
+            " check compound word
+            let l:compound_start = 0
+            let l:compound_index = 4
+            let l:compound_prev_start = []
+            while l:compound_start + l:compound_index < strlen(l:lowercase_word) + 1  && l:i < 50
+                let l:i += 1
+                let l:sub_word = strpart(l:lowercase_word, l:compound_start, l:compound_index)
+                let [l:spell_bad_word_compound, l:spell_bad_type] = spellbadword(l:sub_word)
+		        if l:spell_bad_word_compound == '' 
+                    " reached end, all words correct
+                    if l:compound_start + l:compound_index == strlen(l:lowercase_word)
+                        let l:lowercase_word = strpart(l:lowercase_word, l:compound_start, l:compound_index)  
+                        break
+                    endif
+                    call add(l:compound_prev_start, l:compound_start)
+                    let l:compound_start = l:compound_start + l:compound_index
+                    let l:compound_index = 4
+                    if l:compound_start + l:compound_index > strlen(l:lowercase_word)
+                        let l:compound_index = l:compound_start - l:compound_prev_start[-1] + 1
+                        let l:compound_start = l:compound_prev_start[-1]
+                        call remove(l:compound_prev_start, -1)
+                    endif
+                elseif l:compound_start + l:compound_index == strlen(l:lowercase_word) 
+                    if strlen(l:lowercase_word) - l:compound_start <= 4
+                        break
+                    elseif len(l:compound_prev_start) == 0
+                        break
+                    else
+                        " reset to previous word
+                        let l:compound_index = l:compound_start - l:compound_prev_start[-1] + 1
+                        let l:compound_start = l:compound_prev_start[-1]
+                        call remove(l:compound_prev_start, -1)
+                    endif
+                else
+                    let l:compound_index += 1
+                endif
+            endwhile
+		endif
+
+		let [l:spell_bad_word, l:spell_bad_type] = spellbadword(l:lowercase_word)
+
+		if l:spell_bad_word != ''
+			" Wednesdayなど、先頭大文字しかない単語があるためもう一回チェック
+			let [l:spell_bad_word, l:spell_bad_type] = spellbadword(spelunker#cases#to_first_char_upper(l:lowercase_word))
+		endif
+
 		" 登録は元のケースで行う。辞書登録とそのチェックにかけるときのみlowerケースになる。
 		" 元々ここでlowercaseだけ管理し、lower,UPPER,UpperCamelCaseをmatchadd()していたが、
 		" 最少のマッチだけを登録させる為、ここで実際に引っかかるものを登録させ、
